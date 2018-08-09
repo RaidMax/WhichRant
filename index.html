@@ -23,7 +23,8 @@
         }
 
         #circle_holder {
-            min-height: 50vh;
+            height: 65vh;
+            overflow: hidden;
         }
     </style>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
@@ -169,6 +170,12 @@
 
                 drawOptionSlices(defaultRestaurants, context, spinner);
                 window.localStorage.setItem('restaurants', JSON.stringify(defaultRestaurants));
+            });
+            // make the spinner resize itself 
+            $(window).resize(function () {
+                $('#restaurant_spinner').attr('width', $('#circle_holder').width());
+                $('#restaurant_spinner').attr('height', $('#circle_holder').height());
+                drawOptionSlices(defaultRestaurants, context, spinner);
             });
         });
 
