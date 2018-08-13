@@ -206,12 +206,12 @@
                         defaultRestaurants[index] = ($(element).val());
                         index++;
                     }
-
-                    if (name.length > 0) {
+                });
+                
+                if (name.length > 0) {
                         defaultRestaurants.push(name);
                         $('#new_food_input').val('');
                     }
-                });
 
                 window.localStorage.setItem('restaurants', JSON.stringify(defaultRestaurants));
                 setupSpinner();
@@ -259,7 +259,6 @@
                     previousMouseX = currentX;
                     previousMouseY = currentY;
 
-
                     if (($(spinner).height() / $(document).height() * e.pageY) < $(spinner).height() / 2) {
                         spinnerVelocity += (mouseDeltaX - mouseDeltaY) / 2 / 100;
                     }
@@ -303,7 +302,6 @@
                 spinnerVelocity -= spinnerVelocity / 100;
             }
 
-            // increment (or decrement) the velocity factor the current rotation angle
             currentRotationAngle += spinnerVelocity
 
             // convert the angle length (radians) into to degrees
@@ -314,9 +312,17 @@
                 playClickSound();
                 // round to the closest sector edge
                 lastRotationAngle = currentRotationAngle - (currentRotationAngle % angleLength);
+                
+                // let clockwiseRotation = spinnerVelocity / spinnerVelocity > 0;
+                // let relativeIndex = 0;
+                restaurantIndex += 1;      
+                
+                relativeIndex = spinnerVelocity > 0 ? 
+                    Math.abs((restaurantIndex % defaultRestaurants.length - defaultRestaurants.length) + 1) :
+                    Math.abs((restaurantIndex + defaultRestaurants.length) % defaultRestaurants.length);
 
-                restaurantIndex += 1;
-                $('#spinner_result').text(defaultRestaurants[Math.abs((restaurantIndex % defaultRestaurants.length - defaultRestaurants.length) + 1)]);
+
+                $('#spinner_result').text(defaultRestaurants[relativeIndex]);
             }
 
             // todo: rotate in code?
