@@ -53,6 +53,7 @@
                 <div class="modal-body">
                     <input id="new_food_input" class="form-control" type="text" />
                     <button id="add_food_btn" class="btn btn-block btn-success">Save</button>
+                    <div id="restaurant_options"></div>
                 </div>
             </div>
         </div>
@@ -84,47 +85,76 @@
     </div>
 
     <script>
+        // how long the spinner should spin for before decaying
         const spinnerSpinTime = 5000;
-        let defaultRestaurants = JSON.parse(window.localStorage.getItem("restaurants")) || [];
+        // how many milliseconds to wait before updating the canvas
+        // default is 60 fps
+        const updateFrequency = 1000.0 / 60.0;
+        const spinnerBorderWidth = 3;
         const spinner = document.getElementById("restaurant_spinner");
         const context = spinner.getContext("2d");
+        // note: local storage does not appear to work locally on Edge (38.14393)
+        let defaultRestaurants = JSON.parse(window.localStorage.getItem("restaurants")) || [];
 
-        for (i = 0; i < defaultRestaurants.length; i++) {
-            let html = `<input class="form-control food" type="text" value="${defaultRestaurants[i]}"/>`;
-            $('.modal-body').append(html)
+        setupSpinner();
+
+        /*
+         * gets the canvas ready to spin the spinner
+         * populates all restuarant options into the modal
+         */
+        function setupSpinner() {
+            defaultRestaurants = JSON.parse(window.localStorage.getItem("restaurants")) || [];
+
+            $(spinner).attr('width', $('#circle_holder').width());
+            $(spinner).attr('height', $('#circle_holder').height());
+
+            drawOptionsSectors(defaultRestaurants, context, spinner);
+
+            $('#restaurant_options').empty();
+
+            for (i = 0; i < defaultRestaurants.length; i++) {
+                let html = `<input class="form-control food" type="text" value="${defaultRestaurants[i]}"/>`;
+                $('#restaurant_options').append(html)
+            }
         }
 
-        $('#restaurant_spinner').attr('width', $('#circle_holder').width());
-        $('#restaurant_spinner').attr('height', $('#circle_holder').height());
+        /*
+         * draws each restaurant option onto the canvas
+         * restaurant_options = list of restaurant names
+         * context = context for the spinner canvas
+         * canvas = jquery selector for the canvas element
+         */
+        function drawOptionsSectors(restaurant_options, context, canvas) {
+            const totalSectors = restaurant_options.length;
+            const spinnerAttributes = getSpinnerAttributes();
 
-        let getMinSide = () => Math.min($('#restaurant_spinner').height(), $('#restaurant_spinner').width());
-
-        drawOptionSlices(defaultRestaurants, context, spinner);
-
-        function drawOptionSlices(restaurant_options, context, canvas) {
-            const totalSlices = restaurant_options.length;
-
-            let cx = $('#restaurant_spinner').width() / 2;
-            let cy = $('#restaurant_spinner').height() / 2;
-            let radius = (getMinSide() / 2);
             // back fill a circle to outline the individual slices
             context.beginPath();
-            context.arc(cx, cy, radius, 0, 2 * Math.PI);
+            context.arc(spinnerAttributes.centerX, spinnerAttributes.centerY, spinnerAttributes.radius, 0, 2 * Math.PI);
             context.fillStyle = 'white';
             context.closePath();
             context.fill();
 
+            // draw each sector
             for (let i = 0; i < restaurant_options.length; i++) {
-                // calculate where the slice should start and end
-                let angleLength = (2 * Math.PI) / totalSlices;
+                // calculate where the sector should start and end
+                // each sector's arc is drawn clock-wise
+                let angleLength = (2 * Math.PI) / totalSectors;
                 let startAngle = angleLength * i;
                 let endAngle = angleLength * (i + 1);
-                // draw the individual 'pieces' of the pie
+
+                // draw the individual 'pieces/sectors' of the pie
                 context.save();
-                context.translate(cx, cy);
+                // this sets the relative center of the context to the center of the spinner's circle
+                // that we can reference (0, 0) as the center
+                context.translate(spinnerAttributes.centerX, spinnerAttributes.centerY);
                 context.beginPath();
-                context.rotate((2 * Math.PI) * (3 / 4));
-                context.arc(0, 0, radius - 3, startAngle, endAngle);
+                // we want the first sector to be drawn starting at the position of the selector
+                // so we have to subtract 1/4 of a rotation
+                context.rotate(-(2 * Math.PI) * (1.0 / 4.0));
+                // this gives a slide border to the spinner as the background circle is larger
+                context.arc(0, 0, spinnerAttributes.radius - spinnerBorderWidth, startAngle, endAngle);
+                // required to draw the entire sector
                 context.lineTo(0, 0);
                 context.fillStyle = getRandomColor();
                 context.closePath();
@@ -132,19 +162,26 @@
                 context.restore();
 
                 // draw the text here
+                // can I do this in the previous context?
                 context.save();
                 context.fillStyle = 'white';
                 context.font = '24px segoe ui';
-                context.translate(cx, cy);
+                context.translate(spinnerAttributes.centerX, spinnerAttributes.centerY);
                 context.rotate((2 * Math.PI) * (3 / 4) + (Math.PI * 2) + ((startAngle + endAngle) / 2) + 0.05);
                 context.fillText('               ' + restaurant_options[i], 0, 0);
                 context.restore();
             }
         }
 
+        /*
+         * generates a random RGB color
+         * avoids pale colors, so there should be some contrast
+        */
         function getRandomColor() {
             let getColorByte = function () {
-                return Math.random() > 0.5 ? Math.round(Math.random() * 80) + 20 : Math.round(Math.random() * 80) + 150;
+                return Math.random() > 0.5 ?
+                    Math.round(Math.random() * 80) + 20 :
+                    Math.round(Math.random() * 80) + 150;
             };
             return `rgb(${getColorByte()},${getColorByte()},${getColorByte()})`;
         }
@@ -152,30 +189,35 @@
         $(document).ready(function () {
             $('#spin_the_spinner_btn').click(function () {
                 // rotates 360 * some random factor degrees in x amount of seconds
-                setTimeout(animateSpinner, 0, 0, 360 * (15 + Math.floor(Math.random() * 15)) + (360 * Math.random()), 0, spinnerSpinTime);
+                setTimeout(animateSpinner, 0, 0, 360 * (8 + Math.floor(Math.random())) + (360 * Math.random()), 0, spinnerSpinTime);
             });
             $('#add_food_btn').click(function () {
                 let name = $('#new_food_input').val();
-                if (name.length > 0) {
-                    $('.modal-body').append(`<input class="form-control food" type="text" value="${name}"/>`);
-                    $('#new_food_input').val('');
-                }
 
                 defaultRestaurants = [];
+                index = 0;
                 $.each($('.modal-body input.food'), function (i, element) {
-                    if ($(element).val().length > 0) {
-                        defaultRestaurants[i] = ($(element).val());
+                    if ($(element).val().length > 0 &&
+                        $(element).val() !== 'null' &&
+                        $(element).val !== undefined) {
+                        defaultRestaurants[index] = ($(element).val());
+                        index++;
+                    }
+
+                    if (name.length > 0) {
+                        defaultRestaurants.push(name);
+                        $('#new_food_input').val('');
                     }
                 });
 
-                drawOptionSlices(defaultRestaurants, context, spinner);
                 window.localStorage.setItem('restaurants', JSON.stringify(defaultRestaurants));
+                setupSpinner();
             });
-            // make the spinner resize itself 
+            // make the spinner resize itself
             $(window).resize(function () {
                 $('#restaurant_spinner').attr('width', $('#circle_holder').width());
                 $('#restaurant_spinner').attr('height', $('#circle_holder').height());
-                drawOptionSlices(defaultRestaurants, context, spinner);
+                drawOptionsSectors(defaultRestaurants, context, spinner);
             });
         });
 
@@ -184,46 +226,59 @@
          * at constant velocity for given duration
          * after duration is up, the spinner velocity will decay to 0
          */
-        function animateSpinner(startRotation, endRotation, currentRotation, duration, velocity, lastRotationLength) {
-            if (lastRotationLength === undefined) {
-                lastRotationLength = 0;
-            }
-
-            // the first call doesn't define the time elapsed
-            if (velocity === undefined) {
-                velocity = (endRotation / duration) * 15;
+        function animateSpinner(startRotation, endRotation, currentRotationAngle, duration, velocity, lastRotationAngle, restaurantIndex) {
+            // the first call doesn't define the velocity or rotation length
+            if (velocity === undefined ||
+                lastRotationAngle === undefined) {
+                velocity = (endRotation / duration) * updateFrequency;
+                lastRotationAngle = 0;
+                restaurantIndex = 0;
             }
 
             // decay the rotation velocity after end point has been reached
-            if (currentRotation >= endRotation) {
+            if (currentRotationAngle >= endRotation) {
                 velocity -= velocity / 100;
             }
 
-            // increment (or decrement) the velocity factor the current rotation position
-            currentRotation += velocity
+            // increment (or decrement) the velocity factor the current rotation angle
+            currentRotationAngle += velocity
 
+            // convert the angle length (radians) into to degrees
             let angleLength = (2 * Math.PI) / defaultRestaurants.length * (180.0 / Math.PI);
-            if ((currentRotation - lastRotationLength) > angleLength) {
+            // if the location distance travelled is over the the length of the sector arc length
+            // we want to play a sound
+            if ((currentRotationAngle - lastRotationAngle) > angleLength) {
                 playClickSound();
-                lastRotationLength = currentRotation;
+                // round to the closest sector edge
+                lastRotationAngle = currentRotationAngle - (currentRotationAngle % angleLength);
+
+                restaurantIndex += 1;
+                $('#spinner_result').text(defaultRestaurants[Math.abs((restaurantIndex % defaultRestaurants.length - defaultRestaurants.length) + 1)]);
             }
 
-            $('#spinner_result').text(defaultRestaurants[defaultRestaurants.length - Math.round((currentRotation + (angleLength * (defaultRestaurants.length - 0.5))) % 360 / angleLength) - 1]);
-
+            // todo: rotate in code?
             // apply the css transformation
             $('#restaurant_spinner').css({
-                'transform': `rotate(${currentRotation % 360}deg)`
+                'transform': `rotate(${currentRotationAngle % 360}deg)`
             });
 
             // base case for when velocity is low enough to call it 'stopped'
             if (velocity >= 0.01) {
-                setTimeout(animateSpinner, 15, startRotation, endRotation, currentRotation, duration, velocity, lastRotationLength);
+                setTimeout(animateSpinner, updateFrequency, startRotation, endRotation, currentRotationAngle, duration, velocity, lastRotationAngle, restaurantIndex);
             }
         }
 
         function playClickSound() {
             let audio = new Audio("data:audio/wav;base64," + "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AAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy45OC4yVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZNCP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy45OC4yVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZO6P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZP+P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZP+P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZP+P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZP+P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZP+P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZP+P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sUZP+P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQVBFVEFHRVjQBwAApAAAAAMAAAAAAACgAAAAAAAAAAAaAAAAAAAAAEFydGlzdABTb3VuZEpheS5jb20gU291bmQgRWZmZWN0cwEAAAAAAAAAVGltZVJlZmVyZW5jZQAwLgAAAAAAAABDb2RpbmdIaXN0b3J5AEE9TWljcm9zb2Z0IFBDTSBGb3JtYXQgRj00ODAwMCBXPTE2IE09c3RlcmVvDQpBUEVUQUdFWNAHAACkAAAAAwAAAAAAAIAAAAAAAAAAAFRBRwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFNvdW5kSmF5LmNvbSBTb3VuZCBFZmZlY3RzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/");
             audio.play();
+        }
+
+        function getSpinnerAttributes() {
+            return {
+                'radius': Math.min($(spinner).height(), $('#restaurant_spinner').width()) / 2.0,
+                'centerX': $(spinner).width() / 2,
+                'centerY': $(spinner).height() / 2
+            };
         }
     </script>
 </body>
