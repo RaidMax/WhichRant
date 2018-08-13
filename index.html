@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Where to go?</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
             background-color: #007ACC !important;
@@ -93,8 +94,10 @@
         const spinnerBorderWidth = 3;
         const spinner = document.getElementById("restaurant_spinner");
         const context = spinner.getContext("2d");
+
         // note: local storage does not appear to work locally on Edge (38.14393)
         let defaultRestaurants = JSON.parse(window.localStorage.getItem("restaurants")) || [];
+        let spinnerVelocity = undefined;
 
         setupSpinner();
 
@@ -189,7 +192,7 @@
         $(document).ready(function () {
             $('#spin_the_spinner_btn').click(function () {
                 // rotates 360 * some random factor degrees in x amount of seconds
-                setTimeout(animateSpinner, 0, 0, 360 * (8 + Math.floor(Math.random())) + (360 * Math.random()), 0, spinnerSpinTime);
+                setTimeout(animateSpinner, 0, 0, 360 * (8 + Math.floor(Math.random())) + (360 * Math.random()), spinnerVelocity, spinnerSpinTime);
             });
             $('#add_food_btn').click(function () {
                 let name = $('#new_food_input').val();
@@ -219,6 +222,59 @@
                 $('#restaurant_spinner').attr('height', $('#circle_holder').height());
                 drawOptionsSectors(defaultRestaurants, context, spinner);
             });
+
+            let mouseDown = false;
+            $(spinner).mousedown(function (e) {
+                mouseDown = true;
+            });
+
+            $('html').mouseup(function (e) {
+                mouseDown = false;
+            });
+
+            let mouseVelocity = 0;
+            let mouseDeltaX = 0;
+            let mouseDeltaY = 0;
+            let previousMouseX = undefined;
+            let previousMouseY = undefined
+
+            $(spinner).mousemove(function (e) {
+                if (mouseDown === true) {
+                    if (spinnerVelocity === undefined) {
+                        animateSpinner(0, 0, 0, 0, 0, 0);
+                        spinnerVelocity = 1;
+                    }
+
+                    if (previousMouseX === undefined ||
+                        previousMouseY === undefined) {
+                        previousMouseX = e.pageX;
+                        previousMouseY = e.pageY;
+                    }
+
+                    let currentX = e.pageX;
+                    let currentY = e.pageY;
+
+                    mouseDeltaX = currentX - previousMouseX;
+                    mouseDeltaY = currentY - previousMouseY;
+                    previousMouseX = currentX;
+                    previousMouseY = currentY;
+
+
+                    if (($(spinner).height() / $(document).height() * e.pageY) < $(spinner).height() / 2) {
+                        spinnerVelocity += (mouseDeltaX - mouseDeltaY) / 2 / 100;
+                    }
+
+                    else {
+                        spinnerVelocity -= (mouseDeltaX + mouseDeltaY) / 2 / 100;
+                    }
+                }
+                else {
+                    previousMouseX = undefined;
+                    previousMouseY = undefined;
+                    mouseDeltaY = 0;
+                    mouseDeltaX = 0;
+                }
+            });
         });
 
         /*
@@ -226,28 +282,35 @@
          * at constant velocity for given duration
          * after duration is up, the spinner velocity will decay to 0
          */
-        function animateSpinner(startRotation, endRotation, currentRotationAngle, duration, velocity, lastRotationAngle, restaurantIndex) {
+        function animateSpinner(startRotation, endRotation, currentRotationAngle, duration, lastRotationAngle, restaurantIndex) {
             // the first call doesn't define the velocity or rotation length
-            if (velocity === undefined ||
+            if (spinnerVelocity === undefined ||
                 lastRotationAngle === undefined) {
-                velocity = (endRotation / duration) * updateFrequency;
+
+                if (duration === 0) {
+                    spinnerVelocity = 0;
+                }
+                else {
+                    spinnerVelocity = (endRotation / duration) * updateFrequency;
+                }
                 lastRotationAngle = 0;
                 restaurantIndex = 0;
+                currentRotationAngle = 0;
             }
 
             // decay the rotation velocity after end point has been reached
             if (currentRotationAngle >= endRotation) {
-                velocity -= velocity / 100;
+                spinnerVelocity -= spinnerVelocity / 100;
             }
 
             // increment (or decrement) the velocity factor the current rotation angle
-            currentRotationAngle += velocity
+            currentRotationAngle += spinnerVelocity
 
             // convert the angle length (radians) into to degrees
             let angleLength = (2 * Math.PI) / defaultRestaurants.length * (180.0 / Math.PI);
             // if the location distance travelled is over the the length of the sector arc length
             // we want to play a sound
-            if ((currentRotationAngle - lastRotationAngle) > angleLength) {
+            if (Math.abs(currentRotationAngle - lastRotationAngle) > angleLength) {
                 playClickSound();
                 // round to the closest sector edge
                 lastRotationAngle = currentRotationAngle - (currentRotationAngle % angleLength);
@@ -263,9 +326,9 @@
             });
 
             // base case for when velocity is low enough to call it 'stopped'
-            if (velocity >= 0.01) {
-                setTimeout(animateSpinner, updateFrequency, startRotation, endRotation, currentRotationAngle, duration, velocity, lastRotationAngle, restaurantIndex);
-            }
+            // if (velocity >= 0.01) {
+            setTimeout(animateSpinner, updateFrequency, startRotation, endRotation, currentRotationAngle, duration, lastRotationAngle, restaurantIndex);
+            //  }
         }
 
         function playClickSound() {
