@@ -91,6 +91,7 @@
         // how many milliseconds to wait before updating the canvas
         // default is 60 fps
         const updateFrequency = 1000.0 / 60.0;
+        // border size in pixels of the spinner
         const spinnerBorderWidth = 3;
         const spinner = document.getElementById("restaurant_spinner");
         const context = spinner.getContext("2d");
@@ -98,6 +99,7 @@
         // note: local storage does not appear to work locally on Edge (38.14393)
         let defaultRestaurants = JSON.parse(window.localStorage.getItem("restaurants")) || [];
         let spinnerVelocity = undefined;
+        let spinnerSpinning = false;
 
         setupSpinner();
 
@@ -108,6 +110,7 @@
         function setupSpinner() {
             defaultRestaurants = JSON.parse(window.localStorage.getItem("restaurants")) || [];
 
+            // size the spinner to the width and height of the parent container
             $(spinner).attr('width', $('#circle_holder').width());
             $(spinner).attr('height', $('#circle_holder').height());
 
@@ -115,6 +118,7 @@
 
             $('#restaurant_options').empty();
 
+            // push the html for the food choices intl the modal
             for (i = 0; i < defaultRestaurants.length; i++) {
                 let html = `<input class="form-control food" type="text" value="${defaultRestaurants[i]}"/>`;
                 $('#restaurant_options').append(html)
@@ -192,35 +196,32 @@
         $(document).ready(function () {
             $('#spin_the_spinner_btn').click(function () {
                 // rotates 360 * some random factor degrees in x amount of seconds
-                setTimeout(animateSpinner, 0, 0, 360 * (8 + Math.floor(Math.random())) + (360 * Math.random()), spinnerVelocity, spinnerSpinTime);
+                spinnerSpinning = false;
+                setTimeout(animateSpinner, 50, 0, 360 * (8 + Math.floor(Math.random())) + (360 * Math.random()), spinnerVelocity, spinnerSpinTime);
             });
             $('#add_food_btn').click(function () {
                 let name = $('#new_food_input').val();
 
                 defaultRestaurants = [];
-                index = 0;
                 $.each($('.modal-body input.food'), function (i, element) {
-                    if ($(element).val().length > 0 &&
-                        $(element).val() !== 'null' &&
-                        $(element).val !== undefined) {
-                        defaultRestaurants[index] = ($(element).val());
-                        index++;
+                    if ($(element).val().length > 0) {
+                        defaultRestaurants.push($(element).val());
                     }
                 });
-                
+
+                // new value can be added too
                 if (name.length > 0) {
-                        defaultRestaurants.push(name);
-                        $('#new_food_input').val('');
-                    }
+                    defaultRestaurants.push(name);
+                    $('#new_food_input').val('');
+                }
 
                 window.localStorage.setItem('restaurants', JSON.stringify(defaultRestaurants));
                 setupSpinner();
             });
+
             // make the spinner resize itself
             $(window).resize(function () {
-                $('#restaurant_spinner').attr('width', $('#circle_holder').width());
-                $('#restaurant_spinner').attr('height', $('#circle_holder').height());
-                drawOptionsSectors(defaultRestaurants, context, spinner);
+               setupSpinner();
             });
 
             let mouseDown = false;
@@ -242,7 +243,6 @@
                 if (mouseDown === true) {
                     if (spinnerVelocity === undefined) {
                         animateSpinner(0, 0, 0, 0, 0, 0);
-                        spinnerVelocity = 1;
                     }
 
                     if (previousMouseX === undefined ||
@@ -258,14 +258,16 @@
                     mouseDeltaY = currentY - previousMouseY;
                     previousMouseX = currentX;
                     previousMouseY = currentY;
+                    
+                    // check to see if the mouse is above or below the circle's center
+                    spinnerVelocity = ($(spinner).height() / $(document).height() * currentY) < $(spinner).height() / 2 ? 
+                        spinnerVelocity + (mouseDeltaX / 100) :
+                        spinnerVelocity - (mouseDeltaX / 100);
 
-                    if (($(spinner).height() / $(document).height() * e.pageY) < $(spinner).height() / 2) {
-                        spinnerVelocity += (mouseDeltaX - mouseDeltaY) / 2 / 100;
-                    }
-
-                    else {
-                        spinnerVelocity -= (mouseDeltaX + mouseDeltaY) / 2 / 100;
-                    }
+                    // check to see if the mouse is left or right to the circle's center
+                    spinnerVelocity = ($(spinner).width() / $(document).width() * currentX) < $(spinner).width() / 2 ? 
+                        spinnerVelocity - (mouseDeltaY / 100) :
+                        spinnerVelocity + (mouseDeltaY / 100);
                 }
                 else {
                     previousMouseX = undefined;
@@ -286,19 +288,18 @@
             if (spinnerVelocity === undefined ||
                 lastRotationAngle === undefined) {
 
-                if (duration === 0) {
-                    spinnerVelocity = 0;
-                }
-                else {
-                    spinnerVelocity = (endRotation / duration) * updateFrequency;
-                }
+                // this prevents division by 0 incase duration is 0
+                spinnerVelocity = duration === 0 ?
+                    0 : (endRotation / duration) * updateFrequency
+
                 lastRotationAngle = 0;
                 restaurantIndex = 0;
                 currentRotationAngle = 0;
+                spinnerSpinning = true;
             }
 
             // decay the rotation velocity after end point has been reached
-            if (currentRotationAngle >= endRotation) {
+            if (Math.abs(currentRotationAngle) >= endRotation) {
                 spinnerVelocity -= spinnerVelocity / 100;
             }
 
@@ -308,19 +309,21 @@
             let angleLength = (2 * Math.PI) / defaultRestaurants.length * (180.0 / Math.PI);
             // if the location distance travelled is over the the length of the sector arc length
             // we want to play a sound
-            if (Math.abs(currentRotationAngle - lastRotationAngle) > angleLength) {
+            if (Math.abs(lastRotationAngle - currentRotationAngle % 360) > angleLength) {
+              
                 playClickSound();
                 // round to the closest sector edge
-                lastRotationAngle = currentRotationAngle - (currentRotationAngle % angleLength);
-                
-                // let clockwiseRotation = spinnerVelocity / spinnerVelocity > 0;
-                // let relativeIndex = 0;
-                restaurantIndex += 1;      
-                
-                relativeIndex = spinnerVelocity > 0 ? 
-                    Math.abs((restaurantIndex % defaultRestaurants.length - defaultRestaurants.length) + 1) :
-                    Math.abs((restaurantIndex + defaultRestaurants.length) % defaultRestaurants.length);
+                lastRotationAngle = currentRotationAngle % 360;                   
 
+                restaurantIndex = Math.round(lastRotationAngle / angleLength);
+
+                if (restaurantIndex === 0 ||
+                    restaurantIndex === -defaultRestaurants.length) {
+                    relativeIndex = Math.sign(spinnerVelocity) > 0 ? defaultRestaurants.length - 1 : 0;
+                }
+                else {
+                    relativeIndex = Math.abs((restaurantIndex - defaultRestaurants.length) % defaultRestaurants.length + (Math.sign(spinnerVelocity) > 0 ? 1 : 0));
+                }
 
                 $('#spinner_result').text(defaultRestaurants[relativeIndex]);
             }
@@ -331,10 +334,9 @@
                 'transform': `rotate(${currentRotationAngle % 360}deg)`
             });
 
-            // base case for when velocity is low enough to call it 'stopped'
-            // if (velocity >= 0.01) {
-            setTimeout(animateSpinner, updateFrequency, startRotation, endRotation, currentRotationAngle, duration, lastRotationAngle, restaurantIndex);
-            //  }
+            if (spinnerSpinning) {
+                setTimeout(animateSpinner, updateFrequency, startRotation, endRotation, currentRotationAngle, duration, lastRotationAngle, restaurantIndex);
+            }
         }
 
         function playClickSound() {
@@ -344,7 +346,7 @@
 
         function getSpinnerAttributes() {
             return {
-                'radius': Math.min($(spinner).height(), $('#restaurant_spinner').width()) / 2.0,
+                'radius': Math.min($(spinner).height(), $(spinner).width()) / 2.0,
                 'centerX': $(spinner).width() / 2,
                 'centerY': $(spinner).height() / 2
             };
