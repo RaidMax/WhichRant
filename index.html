@@ -17,6 +17,10 @@
             -webkit-text-stroke-color: white;
             user-select: none;
         }
+         
+        #spinner_result {
+            user-select: none;
+        }
 
         .btn {
             border: 2px white solid !important;
@@ -133,9 +137,9 @@
 
         function drawSpinnerOutline(context) {
             let spinnerAttributes = getSpinnerAttributes();
-            let colorForVelocity = spinnerVelocity === 0 ? 255 : 255 - (Math.abs(spinnerVelocity) / maxSpinnerVelocity * 255);
-            let lineWidth = spinnerBorderWidth + spinnerBorderWidth * (Math.abs(spinnerVelocity) / maxSpinnerVelocity) * 3;
-   
+            let colorForVelocity = spinnerVelocity === 0 ? 255 : 255 - (Math.min(0.925, Math.abs(spinnerVelocity) / maxSpinnerVelocity) * 255);
+            let lineWidth = spinnerBorderWidth + spinnerBorderWidth * (Math.min(0.925, Math.abs(spinnerVelocity) / maxSpinnerVelocity) * 3);
+
             context.beginPath();
             context.arc(spinnerAttributes.centerX, spinnerAttributes.centerY, spinnerAttributes.radius - lineWidth + 2, 0, 2 * Math.PI);
             context.strokeStyle = `#ff${(Math.round(colorForVelocity, 0)).toString(16)}${(Math.round(colorForVelocity, 0)).toString(16)}`;
@@ -160,7 +164,6 @@
 
             context.clearRect(0, 0, $(spinner).width(), $(spinner).height());
             rotationAmount = (rotationAmount % 360) * (Math.PI / 180.0);
-
             
             // draw each sector
             for (let i = 0; i < restaurant_options.length; i++) {
