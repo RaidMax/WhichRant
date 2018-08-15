@@ -15,6 +15,7 @@
             color: #0062a4;
             -webkit-text-stroke-width: 2px;
             -webkit-text-stroke-color: white;
+            user-select: none;
         }
 
         .btn {
@@ -67,7 +68,7 @@
             </div>
         </div>
         <div class="row">
-            <div id="spinner_picker" class="col-12 text-center">
+            <div id="spinner_picker" unselectable="on" class="col-12 text-center">
                 ▼
             </div>
         </div>
@@ -137,7 +138,7 @@
    
             context.beginPath();
             context.arc(spinnerAttributes.centerX, spinnerAttributes.centerY, spinnerAttributes.radius - lineWidth + 2, 0, 2 * Math.PI);
-            context.strokeStyle = `rgb(255,${colorForVelocity}, ${colorForVelocity})`;
+            context.strokeStyle = `#ff${(Math.round(colorForVelocity, 0)).toString(16)}${(Math.round(colorForVelocity, 0)).toString(16)}`;
             context.lineWidth = lineWidth;
             context.closePath();
             context.stroke();
